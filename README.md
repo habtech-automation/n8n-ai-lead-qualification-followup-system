@@ -27,9 +27,18 @@ moment it comes in and routing it based on its actual potential.
 
 ## System Overview
 
-This system is made up of 5 connected workflows that work
-together as a complete lead pipeline.
+This repo contains 5 independent workflows, each tackling a
+different aspect of lead qualification and follow-up. They are
+not connected to each other but together demonstrate the full
+range of approaches to building a lead management system in n8n.
 
+| Workflow | What It Does |
+|---|---|
+| Lead Generator + Email Automation | Captures leads, scores them, and automates email replies |
+| Lead Nurturing System | Follows up cold and warm leads automatically with AI |
+| HubSpot AI Lead Qualification | Qualifies leads inside HubSpot CRM using AI and routes them |
+| AI Powered Multi-Channel Lead Response | Responds to leads from WhatsApp, email, and web forms |
+| GoHighLevel Hot Lead Assignment | Polls for hot leads and assigns them to reps via round robin |
 
 ---
 
