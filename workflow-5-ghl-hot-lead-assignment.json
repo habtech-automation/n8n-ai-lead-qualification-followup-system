@@ -1,0 +1,397 @@
+{
+  "name": "GoHighLevel - Hot Lead Assignment & Notification",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes"
+            }
+          ]
+        }
+      },
+      "id": "2a53a1bc-a8c2-4013-81d7-95a0503e8bf3",
+      "name": "Poll For Hot Leads (Every 5 Min)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        2112,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rlc": true,
+          "mode": "id",
+          "value": "REPLACE_WITH_GOOGLE_SHEET_ID"
+        },
+        "sheetName": {
+          "__rlc": true,
+          "mode": "name",
+          "value": "NormalizedLeads"
+        },
+        "options": {}
+      },
+      "id": "470077a9-2d20-4f92-979e-93ee586da2a5",
+      "name": "Get All Normalized Leads",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2336,
+        400
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "Om45LiQ88EUiTnQ7",
+          "name": "Google Sheets account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-ready-for-assignment",
+              "leftValue": "={{ $json.readyForAssignment }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "62f85941-187a-46e6-b2e9-8f580d546618",
+      "name": "Filter Ready For Assignment",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.2,
+      "position": [
+        2560,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "7f8c34b3-e189-453e-9411-9feff4fdeffb",
+      "name": "Process One Hot Lead At A Time",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        2784,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// EDIT THIS LIST: your sales reps for round-robin assignment\nconst reps = [\n  { name: \"Rep One\", email: \"rep1@example.com\", phone: \"+10000000001\" },\n  { name: \"Rep Two\", email: \"rep2@example.com\", phone: \"+10000000002\" },\n  { name: \"Rep Three\", email: \"rep3@example.com\", phone: \"+10000000003\" }\n];\n\nconst staticData = $getWorkflowStaticData('global');\nif (staticData.repIndex === undefined || staticData.repIndex === null) {\n  staticData.repIndex = 0;\n}\n\nconst assignedRep = reps[staticData.repIndex % reps.length];\nstaticData.repIndex += 1;\n\nreturn items.map(item => {\n  item.json.assignedRepName = assignedRep.name;\n  item.json.assignedRepEmail = assignedRep.email;\n  item.json.assignedRepPhone = assignedRep.phone;\n  item.json.assignedAt = new Date().toISOString();\n  item.json.repTag = 'assigned-' + assignedRep.name.toLowerCase().replace(/ /g, '-');\n  return item;\n});"
+      },
+      "id": "b3d38021-2bf6-45f2-b8aa-cef3675ed14f",
+      "name": "Assign Rep (Round Robin)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3008,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "delete",
+        "contactId": "j",
+        "requestOptions": {}
+      },
+      "id": "476f0b31-c1e6-4175-a3c6-c3d633d7b62f",
+      "name": "GHL - Tag Hot Lead & Assign Owner",
+      "type": "n8n-nodes-base.highLevel",
+      "typeVersion": 2,
+      "position": [
+        3232,
+        400
+      ],
+      "credentials": {
+        "highLevelOAuth2Api": {
+          "id": "zPiaaRXp3U3O7HuF",
+          "name": "HighLevel account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('Assign Rep (Round Robin)').item.json.assignedRepEmail }}",
+        "subject": "=New Hot Lead Assigned: {{ $('Assign Rep (Round Robin)').item.json.firstName }} {{ $('Assign Rep (Round Robin)').item.json.lastName }}",
+        "message": "=<p>Hi {{ $('Assign Rep (Round Robin)').item.json.assignedRepName }},</p><p>A new <strong>Hot</strong> lead has been assigned to you:</p><ul><li><strong>Name:</strong> {{ $('Assign Rep (Round Robin)').item.json.firstName }} {{ $('Assign Rep (Round Robin)').item.json.lastName }}</li><li><strong>Company:</strong> {{ $('Assign Rep (Round Robin)').item.json.company }}</li><li><strong>Email:</strong> {{ $('Assign Rep (Round Robin)').item.json.email }}</li><li><strong>Phone:</strong> {{ $('Assign Rep (Round Robin)').item.json.phone }}</li><li><strong>Service Interested:</strong> {{ $('Assign Rep (Round Robin)').item.json.serviceInterested }}</li><li><strong>AI Score:</strong> {{ $('Assign Rep (Round Robin)').item.json.aiScore }}/100</li><li><strong>AI Reasoning:</strong> {{ $('Assign Rep (Round Robin)').item.json.aiReasoning }}</li><li><strong>Message:</strong> {{ $('Assign Rep (Round Robin)').item.json.message }}</li></ul><p>Please follow up promptly.</p>",
+        "options": {}
+      },
+      "id": "e059fae4-9d58-4425-96fd-1d0eada7e1ff",
+      "name": "Notify Rep - Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        3456,
+        400
+      ],
+      "webhookId": "44c9e306-31ad-452f-8cbe-d4fa857f55dc",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "OjJWLgnvMUPdFc12",
+          "name": "Gmail account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "from": "REPLACE_WITH_TWILIO_NUMBER",
+        "to": "={{ $('Assign Rep (Round Robin)').item.json.assignedRepPhone }}",
+        "message": "=New HOT lead: {{ $('Assign Rep (Round Robin)').item.json.firstName }} {{ $('Assign Rep (Round Robin)').item.json.lastName }} ({{ $('Assign Rep (Round Robin)').item.json.company }}). Score: {{ $('Assign Rep (Round Robin)').item.json.aiScore }}. Check your email for full details.",
+        "options": {}
+      },
+      "id": "aae19986-3232-42b0-b06b-bfcaae2b1888",
+      "name": "Notify Rep - SMS",
+      "type": "n8n-nodes-base.twilio",
+      "typeVersion": 1,
+      "position": [
+        3680,
+        400
+      ],
+      "credentials": {
+        "twilioApi": {
+          "id": "VBYVAZ828dlrhX6u",
+          "name": "Twilio account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "from": "REPLACE_WITH_TWILIO_NUMBER",
+        "to": "={{ $('Assign Rep (Round Robin)').item.json.phone }}",
+        "message": "=Hi {{ $('Assign Rep (Round Robin)').item.json.firstName }}, thanks for reaching out! {{ $('Assign Rep (Round Robin)').item.json.assignedRepName }} from our team will be reaching out shortly. In the meantime, feel free to book a time that works for you: REPLACE_WITH_BOOKING_LINK",
+        "options": {}
+      },
+      "id": "1ab087ab-2abf-4a31-b652-8625fbd35a23",
+      "name": "Notify Lead - Booking Invite SMS",
+      "type": "n8n-nodes-base.twilio",
+      "typeVersion": 1,
+      "position": [
+        3904,
+        400
+      ],
+      "credentials": {
+        "twilioApi": {
+          "id": "VBYVAZ828dlrhX6u",
+          "name": "Twilio account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rlc": true,
+          "mode": "id",
+          "value": "REPLACE_WITH_GOOGLE_SHEET_ID"
+        },
+        "sheetName": {
+          "__rlc": true,
+          "mode": "name",
+          "value": "NormalizedLeads"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "leadId": "={{ $('Assign Rep (Round Robin)').item.json.leadId }}",
+            "status": "assigned_hot",
+            "assignedRepName": "={{ $('Assign Rep (Round Robin)').item.json.assignedRepName }}",
+            "assignedRepEmail": "={{ $('Assign Rep (Round Robin)').item.json.assignedRepEmail }}",
+            "assignedRepPhone": "={{ $('Assign Rep (Round Robin)').item.json.assignedRepPhone }}",
+            "assignedAt": "={{ $('Assign Rep (Round Robin)').item.json.assignedAt }}",
+            "readyForAssignment": false
+          },
+          "matchingColumns": [
+            "leadId"
+          ],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "a287bec3-8c82-4831-9ca8-95f5e0cf5a39",
+      "name": "Update Lead - Assigned",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        4096,
+        400
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "Om45LiQ88EUiTnQ7",
+          "name": "Google Sheets account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {},
+      "id": "8ad6565e-ac7c-4eea-9f15-36ef7c04fda6",
+      "name": "Batch Complete",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        3008,
+        208
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Poll For Hot Leads (Every 5 Min)": {
+      "main": [
+        [
+          {
+            "node": "Get All Normalized Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get All Normalized Leads": {
+      "main": [
+        [
+          {
+            "node": "Filter Ready For Assignment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Ready For Assignment": {
+      "main": [
+        [
+          {
+            "node": "Process One Hot Lead At A Time",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process One Hot Lead At A Time": {
+      "main": [
+        [
+          {
+            "node": "Batch Complete",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Assign Rep (Round Robin)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Assign Rep (Round Robin)": {
+      "main": [
+        [
+          {
+            "node": "GHL - Tag Hot Lead & Assign Owner",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GHL - Tag Hot Lead & Assign Owner": {
+      "main": [
+        [
+          {
+            "node": "Notify Rep - Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notify Rep - Email": {
+      "main": [
+        [
+          {
+            "node": "Notify Rep - SMS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notify Rep - SMS": {
+      "main": [
+        [
+          {
+            "node": "Notify Lead - Booking Invite SMS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notify Lead - Booking Invite SMS": {
+      "main": [
+        [
+          {
+            "node": "Update Lead - Assigned",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Lead - Assigned": {
+      "main": [
+        [
+          {
+            "node": "Process One Hot Lead At A Time",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "d2a12189-16ee-452c-b901-937187417dde",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "5cbbd120c52dc8c0911dbdf390c52a2354702f194fbe4909355bc0904d5febe6"
+  },
+  "id": "N8QUCSoB3b7ArKCW",
+  "tags": []
+}
