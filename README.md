@@ -30,9 +30,12 @@ moment it comes in and routing it based on its actual potential.
 This system is made up of 5 connected workflows that work
 together as a complete lead pipeline.
 
+
 ---
 
-## Workflow 1 — Lead Generator + Email Automation
+## Architecture
+
+### Workflow 1 — Lead Generator + Email Automation
 
 **Phase 1: Capture and Score**
 
@@ -58,19 +61,18 @@ Extract Email Data
 Lookup by Thread ID (Google Sheets)
 ↓
 If lead found?
-↓
-Merge & Validate Lead → Prepare AI Prompt
-↓
-AI Agent (OpenAI Chat Model)
-↓
-Parse AI Response
-↓
-Send Auto-Reply → Mark Message as Read
-└── No match → No Operation
+├── Yes → Merge & Validate Lead → Prepare AI Prompt
+│         ↓
+│         AI Agent (OpenAI Chat Model)
+│         ↓
+│         Parse AI Response
+│         ↓
+│         Send Auto-Reply → Mark Message as Read
+└── No → No Operation
 
 ---
 
-## Workflow 2 — Lead Nurturing System
+### Workflow 2 — Lead Nurturing System
 
 Google Sheets Trigger (new row added)
 ↓
@@ -84,7 +86,7 @@ AI Processing — Create Email & Tag (OpenAI)
 
 ---
 
-## Workflow 3 — HubSpot AI Lead Qualification
+### Workflow 3 — HubSpot AI Lead Qualification
 
 Webhook
 ↓
@@ -95,8 +97,7 @@ Extract Lead Fields
 Validate Email Present
 ├── Missing → Stop
 ↓
-AI Qualification Agent
-└── OpenRouter Chat Model + Structured Output Parser
+AI Qualification Agent (OpenRouter + Structured Output Parser)
 ↓
 Merge Qualification Result
 ↓
@@ -106,7 +107,7 @@ Is Hot Lead?
 
 ---
 
-## Workflow 4 — AI-Powered Multi-Channel Lead Response
+### Workflow 4 — AI Powered Multi-Channel Lead Response
 
 Website Form Webhook → Normalise Form Lead ──┐
 Twilio Trigger → Normalise WhatsApp Lead ────┼──▶ Assign Lead ID
@@ -128,7 +129,7 @@ Is Hot Lead?
 
 ---
 
-## Workflow 5 — GoHighLevel Hot Lead Assignment & Notification
+### Workflow 5 — GoHighLevel Hot Lead Assignment & Notification
 
 Poll For Hot Leads (Every 5 Min)
 ↓
@@ -142,14 +143,21 @@ Assign Rep (Round Robin)
 ↓
 GHL — Tag Hot Lead & Assign Owner
 ↓
-Notify Rep — Email
-↓
-Notify Rep — SMS
-↓
-Notify Lead — Booking Invite SMS
+├── Notify Rep — Email
+├── Notify Rep — SMS
+└── Notify Lead — Booking Invite SMS
 ↓
 Update Lead — Assigned (Google Sheets)
-└── Batch Complete
+↓
+Batch Complete
+
+---
+
+## Demo
+
+[Watch Demo Video 1](https://habtech.neetorecord.com/watch/9de71d594381212663c6)
+
+[Watch Demo Video 2](https://habtech.neetorecord.com/watch/9677cec84d44a9c4ff99)
 
 ---
 
