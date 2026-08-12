@@ -1,0 +1,562 @@
+{
+  "name": "Lead Nurturing Engine",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "documentId": {
+          "__rl": true,
+          "value": "1j64Svzw16BN5dUFjMcB4Ik2F1nszR2RGZNnfTP148S4",
+          "mode": "list",
+          "cachedResultName": "Lead Intake",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1j64Svzw16BN5dUFjMcB4Ik2F1nszR2RGZNnfTP148S4/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1j64Svzw16BN5dUFjMcB4Ik2F1nszR2RGZNnfTP148S4/edit#gid=0"
+        },
+        "event": "rowAdded",
+        "options": {}
+      },
+      "id": "54a68ebe-632c-417b-93c1-9759b2f1c43f",
+      "name": "New Lead (Google Sheets)",
+      "type": "n8n-nodes-base.googleSheetsTrigger",
+      "typeVersion": 1,
+      "position": [
+        -1104,
+        112
+      ],
+      "credentials": {
+        "googleSheetsTriggerOAuth2Api": {
+          "id": "gGQxhYkYGpzIOyY0",
+          "name": "Google Sheets Trigger account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Access the AI output and the original lead data\nconst aiResponse = $node[\"Score & Write Email\"].json.content.parts[0].text;\nconst lead = $('New Lead (Google Sheets)').item.json;\n\n// Use regex to extract the JSON content from the Markdown blocks (```json ... ```)\nconst jsonString = aiResponse.replace(/```json|```/g, \"\").trim();\n\ntry {\n  // Parse the extracted string into a real object\n  const aiData = JSON.parse(jsonString);\n\n  return [{\n    json: {\n      name: lead.name,\n      email: lead.email,\n      company: lead.company,\n      job_title: lead.job_title,\n      phone: lead.phone || '',\n      // Map fields from the AI's parsed JSON\n      score: aiData.score,\n      tier: aiData.tier,\n      email_subject: aiData.subject,\n      email_body: aiData.body,\n      created_at: new Date().toISOString()\n    }\n  }];\n} catch (error) {\n  // Fallback in case the AI output isn't valid JSON\n  return [{\n    json: {\n      error: \"Failed to parse AI response\",\n      raw_text: aiResponse\n    }\n  }];\n}"
+      },
+      "id": "f31790cd-72a0-494a-97e6-0006e08c4f92",
+      "name": "Parse AI Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -480,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('New Lead (Google Sheets)').item.json.Email }}",
+        "subject": "={{ $json.email_subject }}",
+        "emailType": "text",
+        "message": "={{ $json.email_body }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "2c4111dc-cbdf-4606-b71c-ce97d6b058b9",
+      "name": "Send Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        -272,
+        112
+      ],
+      "webhookId": "d961191b-00fc-40e3-8431-6f248eb35fb4",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "OjJWLgnvMUPdFc12",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $('Parse AI Response').item.json.score }}",
+              "rightValue": 10,
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              },
+              "id": "603f4f5f-6f99-454b-9887-42e041b3f349"
+            },
+            {
+              "id": "2f34b47f-6add-48e1-a59c-593457c9a6e3",
+              "leftValue": "={{ $('Parse AI Response').item.json.score }}",
+              "rightValue": 5,
+              "operator": {
+                "type": "number",
+                "operation": "lt"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "id": "c581d98c-9775-4328-8c6e-802cd30928bd",
+      "name": "Is Hot Lead?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -80,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "1STe6ajaKsT4s807mcKq73S9mdUH1ms5yOijYIo9y-Fs",
+          "mode": "list",
+          "cachedResultName": "Lead Pipeline",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1STe6ajaKsT4s807mcKq73S9mdUH1ms5yOijYIo9y-Fs/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1STe6ajaKsT4s807mcKq73S9mdUH1ms5yOijYIo9y-Fs/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "tier": "={{ $('Parse AI Response').item.json.tier }}",
+            "Name": "={{ $('New Lead (Google Sheets)').item.json['Full Name'] }}",
+            "Email": "={{ $('New Lead (Google Sheets)').item.json.Email }}",
+            "Company": "={{ $('New Lead (Google Sheets)').item.json.Company }}",
+            "Job tittle": "={{ $('New Lead (Google Sheets)').item.json['job tittle'] }}",
+            "Score": "={{ $('Parse AI Response').item.json.score }}",
+            "Status": "={{ $('Send Email').item.json.labelIds[0] }}",
+            "email sent at": "={{ $('Parse AI Response').item.json.created_at }}",
+            "Follow up date": "={{ new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] }}"
+          },
+          "matchingColumns": [
+            "Email"
+          ],
+          "schema": [
+            {
+              "id": "Name",
+              "displayName": "Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Email",
+              "displayName": "Email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Company",
+              "displayName": "Company",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Job tittle",
+              "displayName": "Job tittle",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Score",
+              "displayName": "Score",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "tier",
+              "displayName": "tier",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "email sent at",
+              "displayName": "email sent at",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Follow up date",
+              "displayName": "Follow up date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "0e9be931-06d3-4cc5-abb5-11f9571ebe09",
+      "name": "Update Pipeline Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.4,
+      "position": [
+        192,
+        240
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "Om45LiQ88EUiTnQ7",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "amount": 3,
+        "unit": "days"
+      },
+      "id": "a529cd9d-7364-4474-8ce3-0d5a27cb3708",
+      "name": "Wait 3 Days",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        448,
+        240
+      ],
+      "webhookId": "8164df64-1125-48b3-a6b5-33ddaf3df4f8",
+      "alwaysOutputData": false
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $json.message?.content || '{}';\nlet msg;\ntry {\n  msg = JSON.parse(raw.replace(/```json|```/g, '').trim());\n} catch(e) {\n  msg = { subject: 'One more thought...', body: 'Just wanted to follow up in case my last message got buried.' };\n}\n\nconst prev = $('Update Pipeline Sheet').item.json;\nreturn [{ json: { ...prev, fu_subject: msg.subject, fu_body: msg.body } }];"
+      },
+      "id": "ac74c57d-7458-4fc1-a44a-a337a39624ff",
+      "name": "Parse Follow-up",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        976,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.email }}",
+        "subject": "={{ $json.fu_subject }}",
+        "emailType": "text",
+        "message": "={{ $json.fu_body }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "1433c7c0-7ef9-4b13-a9b1-e0ae7a201f3c",
+      "name": "Send Follow-up Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1168,
+        240
+      ],
+      "webhookId": "01203c17-7d22-4d37-82e0-27a0a60581f7",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "OjJWLgnvMUPdFc12",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-2.5-flash",
+          "mode": "list",
+          "cachedResultName": "models/gemini-2.5-flash"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "You are a B2B sales AI. Given a lead's details, do two things:\n1. Score them 0-100 (hot=70+, warm=40-69, cold=0-39)\n2. Write a short personalized first-touch email\n\nReturn ONLY this JSON:\n{\n  \"score\": <number>,\n  \"tier\": \"hot|warm|cold\",\n  \"subject\": \"<email subject, max 8 words>\",\n  \"body\": \"<email body, 3-4 sentences, friendly and specific, end with a soft CTA>\"\n}",
+              "role": "model"
+            },
+            {
+              "content": "=Lead details:\nName: {{ $json['Full Name'] }}\nEmail: {{ $json.Email }}\nCompany:{{ $json.Company }} \nJob Title: {{ $json['job tittle'] }}\nIndustry: {{ $json.Industry }}\nBudget:{{ $json.Budget }}USD"
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.1,
+      "position": [
+        -832,
+        112
+      ],
+      "id": "8487dcbb-6a97-48ce-9efe-465946479b82",
+      "name": "Score & Write Email",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "MYiccG9JwAY45Yzz",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "C0AQUSUT1QE",
+          "mode": "list",
+          "cachedResultName": "sales-team"
+        },
+        "text": "=hot lead detected!\n\n🔥 Hot Lead Detected!\n\nName:    {{ $('New Lead (Google Sheets)').item.json['Full Name'] }}\nEmail:    {{ $('New Lead (Google Sheets)').item.json.Email }}\nCompany:  {{ $('New Lead (Google Sheets)').item.json.Company }}\nTitle:  {{ $('New Lead (Google Sheets)').item.json['job tittle'] }}\nScore:    {{ $('Parse AI Response').item.json.score }}/20\n\n✅ First email already sent. Follow up now!",
+        "otherOptions": {}
+      },
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.4,
+      "position": [
+        176,
+        16
+      ],
+      "id": "b0fe1fed-da83-44fc-9984-e7a8671e8eff",
+      "name": "Notify Team on slack",
+      "webhookId": "02206423-78a7-4f80-9d71-61343a2c86f6",
+      "credentials": {
+        "slackOAuth2Api": {
+          "id": "YDqZSJ6DrFkhvpYd",
+          "name": "Slack account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-2.5-flash",
+          "mode": "list",
+          "cachedResultName": "models/gemini-2.5-flash"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "Write a short follow-up email for someone who hasn't replied. Use a completely different angle than the first email. Max 3 sentences + a soft CTA. Sound human, not salesy.\n\nReturn ONLY JSON:\n{\n  \"subject\": \"<subject>\",\n  \"body\": \"<body>\"\n}",
+              "role": "model"
+            },
+            {
+              "content": "=Name: {{ $json.name }}\nCompany: {{ $json.company }}\nNo reply to the first email. Write a fresh follow-up."
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.1,
+      "position": [
+        656,
+        240
+      ],
+      "id": "6ce3fa51-2d07-47ba-b97c-63a118e5fe95",
+      "name": "Follow up message",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "MYiccG9JwAY45Yzz",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "New Lead (Google Sheets)": {
+      "main": [
+        [
+          {
+            "node": "Score & Write Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse AI Response": {
+      "main": [
+        [
+          {
+            "node": "Send Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Email": {
+      "main": [
+        [
+          {
+            "node": "Is Hot Lead?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Hot Lead?": {
+      "main": [
+        [
+          {
+            "node": "Notify Team on slack",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Update Pipeline Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Pipeline Sheet": {
+      "main": [
+        [
+          {
+            "node": "Wait 3 Days",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait 3 Days": {
+      "main": [
+        [
+          {
+            "node": "Follow up message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Follow-up": {
+      "main": [
+        [
+          {
+            "node": "Send Follow-up Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Score & Write Email": {
+      "main": [
+        [
+          {
+            "node": "Parse AI Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notify Team on slack": {
+      "main": [
+        [
+          {
+            "node": "Update Pipeline Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Follow up message": {
+      "main": [
+        [
+          {
+            "node": "Parse Follow-up",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "30db05f7-e87a-498a-8088-02bf331fe3cf",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "5cbbd120c52dc8c0911dbdf390c52a2354702f194fbe4909355bc0904d5febe6"
+  },
+  "id": "fLpJ5lAT6EqfEZr1",
+  "tags": []
+}
