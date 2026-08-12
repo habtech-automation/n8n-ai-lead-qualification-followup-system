@@ -1,0 +1,540 @@
+{
+  "name": "HubSpot AI Lead Qualification",
+  "nodes": [
+    {
+      "parameters": {
+        "authentication": "appToken",
+        "operation": "get",
+        "contactId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $json.body[0].objectId }}"
+        },
+        "additionalFields": {}
+      },
+      "id": "97773b9c-05c8-45f6-bf1c-9d0197ba8deb",
+      "name": "Get Full Contact Details",
+      "type": "n8n-nodes-base.hubspot",
+      "typeVersion": 2.2,
+      "position": [
+        5872,
+        2080
+      ],
+      "credentials": {
+        "hubspotAppToken": {
+          "id": "k7VcAw29SK6vv2oR",
+          "name": "HubSpot account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "ex-contactId",
+              "name": "contactId",
+              "type": "string",
+              "value": "={{ $json.properties.hs_object_id.value }}"
+            },
+            {
+              "id": "ex-firstName",
+              "name": "firstName",
+              "type": "string",
+              "value": "={{ $json.properties.firstname.value || '' }}"
+            },
+            {
+              "id": "ex-lastName",
+              "name": "lastName",
+              "type": "string",
+              "value": "={{ $json.properties.lastname.value || '' }}"
+            },
+            {
+              "id": "ex-email",
+              "name": "email",
+              "type": "string",
+              "value": "={{ $json.properties.email.value \n '' }}"
+            },
+            {
+              "id": "ex-phone",
+              "name": "phone",
+              "type": "string",
+              "value": "={{ $json.properties.phone.value || '' }}"
+            },
+            {
+              "id": "ex-company",
+              "name": "company",
+              "type": "string",
+              "value": "=Habtech"
+            },
+            {
+              "id": "ex-source",
+              "name": "source",
+              "type": "string",
+              "value": "={{ $json.properties.hs_lead_source || $json.properties.source || 'HubSpot' }}"
+            },
+            {
+              "id": "ex-serviceInterested",
+              "name": "serviceInterested",
+              "type": "string",
+              "value": "={{ $json.properties.service_interested.value || '' }}"
+            },
+            {
+              "id": "ex-message",
+              "name": "message",
+              "type": "string",
+              "value": "={{ $json.properties.message.value || '' }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "ebfad5bc-f33c-4b26-820e-4de29396c72a",
+      "name": "Extract Lead Fields",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        6128,
+        2080
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-email-notempty",
+              "leftValue": "={{ $json.email }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "34b5acf3-8aab-49e2-b270-428f76446552",
+      "name": "Validate Email Present",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        6368,
+        2080
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Lead Details:\nName: {{ $json.firstName }} {{ $json.lastName }}\nCompany: {{ $json.company }}\nSource: {{ $json.source }}\nService Interested: {{ $json.serviceInterested }}\nMessage: \"{{ $json.message }}\"\n\nClassify this lead.",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "You are a B2B lead qualification specialist for a marketing agency using HubSpot. Analyze each lead strictly on the evidence provided.\n\nClassify as HOT only when the message shows explicit purchase or service intent (e.g. \"I need this now\", \"ready to start\", \"looking to hire\") combined with an urgency signal (timeframe, deadline, \"asap\") or budget signal (budget mentioned, stated willingness to invest, serious pricing inquiry).\n\nClassify as WARM when there is genuine relevant interest but no explicit urgency or budget signal.\n\nClassify as COLD when the message is vague, purely informational, generic, or shows no real buying intent.\n\nBe conservative — only assign HOT when the evidence clearly supports it. Always return valid structured output."
+        }
+      },
+      "id": "f6d8f29e-846e-4376-b066-23386e1051bc",
+      "name": "AI Qualification Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        6608,
+        2000
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"qualificationStatus\": \"Hot\",\n  \"leadScore\": 85,\n  \"reasoning\": \"Explicit budget ($3,500) and clear service intent for patient bookings within 30 days.\",\n  \"nextAction\": \"Call Now\"\n}"
+      },
+      "id": "8e3a6955-d209-4b19-bc20-1020b305045b",
+      "name": "Structured Output Parser",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.2,
+      "position": [
+        6800,
+        2240
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "merge-contactId",
+              "name": "contactId",
+              "type": "string",
+              "value": "={{ $('Extract Lead Fields').item.json.contactId }}"
+            },
+            {
+              "id": "merge-firstName",
+              "name": "firstName",
+              "type": "string",
+              "value": "={{ $('Extract Lead Fields').item.json.firstName }}"
+            },
+            {
+              "id": "merge-lastName",
+              "name": "lastName",
+              "type": "string",
+              "value": "={{ $('Extract Lead Fields').item.json.lastName }}"
+            },
+            {
+              "id": "merge-email",
+              "name": "email",
+              "type": "string",
+              "value": "={{ $('Extract Lead Fields').item.json.email }}"
+            },
+            {
+              "id": "merge-phone",
+              "name": "phone",
+              "type": "string",
+              "value": "={{ $('Extract Lead Fields').item.json.phone }}"
+            },
+            {
+              "id": "merge-company",
+              "name": "company",
+              "type": "string",
+              "value": "={{ $('Extract Lead Fields').item.json.company }}"
+            },
+            {
+              "id": "merge-serviceInterested",
+              "name": "serviceInterested",
+              "type": "string",
+              "value": "={{ $('Extract Lead Fields').item.json.serviceInterested }}"
+            },
+            {
+              "id": "merge-message",
+              "name": "message",
+              "type": "string",
+              "value": "={{ $('Extract Lead Fields').item.json.message }}"
+            },
+            {
+              "id": "merge-classification",
+              "name": "aiClassification",
+              "type": "string",
+              "value": "={{ $json.output.classification }}"
+            },
+            {
+              "id": "merge-score",
+              "name": "aiScore",
+              "type": "number",
+              "value": "=80"
+            },
+            {
+              "id": "merge-reasoning",
+              "name": "aiReasoning",
+              "type": "string",
+              "value": "={{ $json.output.reasoning }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a232159d-612a-4df0-a5fe-6f3099ec2bb5",
+      "name": "Merge Qualification Result",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        6960,
+        2000
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-is-hot",
+              "leftValue": "={{ $json.aiClassification }}",
+              "rightValue": "Hot",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "99fbf93e-00e9-49db-b152-e58d4f27b35d",
+      "name": "Is Hot Lead?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        7200,
+        2000
+      ]
+    },
+    {
+      "parameters": {
+        "email": "={{ $json.email }}",
+        "additionalFields": {},
+        "options": {}
+      },
+      "id": "b9228ebb-dd94-4c96-a956-2b4161c7fe18",
+      "name": "HubSpot - Update Contact (Hot)",
+      "type": "n8n-nodes-base.hubspot",
+      "typeVersion": 2.2,
+      "position": [
+        7440,
+        1888
+      ],
+      "credentials": {
+        "hubspotApi": {
+          "id": "9ty6WQr6wT0O2s9D",
+          "name": "HubSpot account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "sendTo": "sulymanolaide32@gmail.com",
+        "subject": "=New Hot Lead:{{ $('AI Qualification Agent').item.json.output.name }}",
+        "message": "=<p>A new <strong>Hot</strong> lead just came in and needs a fast follow-up:</p><ul><li><strong>Name:</strong> {{ $('AI Qualification Agent').item.json.output.name }}</li><li><strong>Company:</strong>Habtech</li><li><strong>Email:</strong> {{ $('Is Hot Lead?').item.json.email }}</li><li><strong>Phone:</strong> {{ $('Merge Qualification Result').item.json.phone }}</li><li><strong>Service Interested:</strong>{{ $('AI Qualification Agent').item.json.output.service_interested }}</li><li><strong>AI Score:</strong> 90/100</li><li><strong>AI Reasoning:</strong> {{ $('AI Qualification Agent').item.json.output.reasoning }}</li><li><strong>Message:</strong> {{ $('Merge Qualification Result').item.json.message }}</li></ul>",
+        "options": {}
+      },
+      "id": "670f4dea-32da-474a-a792-3a71696718ec",
+      "name": "Notify Rep - Hot Lead",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        7680,
+        1888
+      ],
+      "webhookId": "16d36ac3-6a62-4bd8-a1d5-944ad40ea74c",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "OjJWLgnvMUPdFc12",
+          "name": "Gmail account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "email": "sulymanhabeebullah57@gmail.com",
+        "additionalFields": {},
+        "options": {}
+      },
+      "id": "c4808d49-2f85-4ab6-9648-323fb5907f00",
+      "name": "HubSpot - Update Contact (Nurture)",
+      "type": "n8n-nodes-base.hubspot",
+      "typeVersion": 2.2,
+      "position": [
+        7440,
+        2144
+      ],
+      "credentials": {
+        "hubspotApi": {
+          "id": "9ty6WQr6wT0O2s9D",
+          "name": "HubSpot account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {},
+      "id": "3b0326c4-fb05-4565-9ac0-3c87c6cad6dd",
+      "name": "Stop - Missing Email",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        6368,
+        2240
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "hubspot",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        5632,
+        2080
+      ],
+      "id": "40b79eda-0446-4ec4-9b12-37121cd7e324",
+      "name": "Webhook",
+      "webhookId": "84dffc41-208f-4c33-961b-5e68d6c945d0"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        6576,
+        2240
+      ],
+      "id": "d5751c07-0cfa-4425-b9b5-d11e792d6f8b",
+      "name": "OpenRouter Chat Model",
+      "credentials": {
+        "openRouterApi": {
+          "id": "TR6uzsL6M1OpchsK",
+          "name": "OpenRouter account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Get Full Contact Details": {
+      "main": [
+        [
+          {
+            "node": "Extract Lead Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Lead Fields": {
+      "main": [
+        [
+          {
+            "node": "Validate Email Present",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Email Present": {
+      "main": [
+        [
+          {
+            "node": "AI Qualification Agent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Stop - Missing Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "AI Qualification Agent",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Qualification Agent": {
+      "main": [
+        [
+          {
+            "node": "Merge Qualification Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Qualification Result": {
+      "main": [
+        [
+          {
+            "node": "Is Hot Lead?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Hot Lead?": {
+      "main": [
+        [
+          {
+            "node": "HubSpot - Update Contact (Hot)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "HubSpot - Update Contact (Nurture)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HubSpot - Update Contact (Hot)": {
+      "main": [
+        [
+          {
+            "node": "Notify Rep - Hot Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Get Full Contact Details",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Qualification Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "ddfd61b0-8273-4960-b7c2-8220e6b0b55b",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "5cbbd120c52dc8c0911dbdf390c52a2354702f194fbe4909355bc0904d5febe6"
+  },
+  "id": "j1f4GpOFjhqjAt8l",
+  "tags": []
+}
