@@ -1,0 +1,712 @@
+{
+  "name": "AI-Powered Multi-Channel Lead Response System",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "real-estate-form-lead",
+        "options": {}
+      },
+      "id": "4a845353-e21a-411c-9aa6-ebc4733bc585",
+      "name": "Website Form Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        0,
+        16
+      ],
+      "webhookId": "real-estate-form-lead",
+      "notes": "Connect your website contact form to POST here, or use a tool like Typeform/Tally and add this URL as the webhook"
+    },
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "simple": false,
+        "filters": {
+          "readStatus": "unread",
+          "sender": ""
+        },
+        "options": {}
+      },
+      "id": "194c0428-16d7-49f4-918b-2168970bec03",
+      "name": "Gmail Trigger — New Inquiry",
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        400
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "OjJWLgnvMUPdFc12",
+          "name": "Gmail account"
+        }
+      },
+      "notes": "Polls inbox every minute for new unread emails. Connect your Gmail credential."
+    },
+    {
+      "parameters": {
+        "jsCode": "// ── Normalise data from Website Form ───────────────────\nconst body = $input.first().json.body || $input.first().json;\n\nreturn [{\n  json: {\n    source: 'website_form',\n    lead_name: body.name || body.full_name || 'there',\n    lead_email: body.email || '',\n    lead_phone: body.phone || body.phone_number || '',\n    message: body.message || body.inquiry || body.details || '',\n    property_interest: body.property || body.property_type || body.listing || '',\n    budget: body.budget || '',\n    preferred_contact: body.preferred_contact || 'email'\n  }\n}];"
+      },
+      "id": "ee6fd0e3-eba0-4cbd-8c01-fe81e4e48187",
+      "name": "Normalise — Form Lead",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        16
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ── Normalise data from WhatsApp via Twilio ────────────\nconst body = $input.first().json.body || $input.first().json;\n\nconst phone = (body.From || '').replace('whatsapp:', '');\n\nreturn [{\n  json: {\n    source: 'whatsapp',\n    lead_name: body.ProfileName || 'there',\n    lead_email: '',\n    lead_phone: phone,\n    message: body.Body || '',\n    property_interest: '',\n    budget: '',\n    preferred_contact: 'whatsapp',\n    business_phone: (body.To || '').replace('whatsapp:', '')\n  }\n}];"
+      },
+      "id": "f1c12677-1d98-48b6-9625-d918f188d8dc",
+      "name": "Normalise — WhatsApp Lead",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ── Normalise Email Lead ───────────────────────────────\nconst email = $input.first().json;\n\n// Get email body\nconst body =\n  email.text ||\n  email.snippet ||\n  email.html ||\n  email.body ||\n  \"\";\n\n// Extract phone number\nconst phoneMatch = body.match(/(\\+?\\d[\\d\\s-]{8,}\\d)/);\n\n// Extract sender name (usually appears after \"Thanks,\")\nconst nameMatch = body.match(/Thanks,?\\s*\\n+\\s*([^\\n]+)/i);\n\nconst leadName = nameMatch?.[1]?.trim() || \"Unknown Lead\";\nconst leadPhone = phoneMatch?.[1]?.trim() || \"\";\n\n// Extract email address if available\nconst senderEmail =\n  email.from?.email ||\n  email.sender?.email ||\n  email.email ||\n  \"\";\n\n// Extract property type\nlet propertyInterest = \"\";\n\nif (/2\\s*bedroom/i.test(body)) {\n  propertyInterest = \"2 Bedroom Flat\";\n}\n\n// Extract location\nlet location = \"\";\n\nif (/Victoria Island/i.test(body)) {\n  location = \"Victoria Island\";\n}\n\n// Extract budget\nconst budgetMatch = body.match(/budget\\s+is\\s+(.+?)(?:\\.|\\n)/i);\n\nreturn [\n  {\n    json: {\n      source: \"email\",\n      lead_name: leadName,\n      lead_email: senderEmail,\n      lead_phone: leadPhone,\n      property_interest: propertyInterest,\n      location,\n      budget: budgetMatch?.[1]?.trim() || \"\",\n      preferred_contact: \"phone\",\n      thread_id: email.threadId || email.id || \"\",\n      message: body\n    }\n  }\n];"
+      },
+      "id": "500827a9-a3c6-4101-a35a-f09f076941ae",
+      "name": "Normalise — Email Lead",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ── Merge point — add unified fields ────────────────────\nfunction formatDate(date) {\n  const d = new Date(date);\n  return String(d.getDate()).padStart(2,'0') + '/' +\n         String(d.getMonth()+1).padStart(2,'0') + '/' +\n         d.getFullYear();\n}\n\nconst data = $input.first().json;\nconst leadId = 'LEAD-' + Date.now().toString().slice(-7);\nconst now = new Date();\nconst hour = now.getHours();\nconst greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';\n\nreturn [{\n  json: {\n    ...data,\n    lead_id: leadId,\n    received_at: formatDate(now),\n    greeting: greeting\n  }\n}];"
+      },
+      "id": "2f100373-7ddb-443e-b87f-d0656fd77811",
+      "name": "Assign Lead ID",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ── Get AI Agent output ─────────────────────────────────\nconst agentOutput = $input.first().json.output || $input.first().json;\nconst leadData = $('Assign Lead ID').first().json;\n\n// ── Parse the JSON from agent output ────────────────────\nlet analysis;\ntry {\n  const raw = typeof agentOutput === 'string' ? agentOutput : JSON.stringify(agentOutput);\n  const cleaned = raw.replace(/```json|```/g, '').trim();\n  analysis = JSON.parse(cleaned);\n} catch(e) {\n  // If agent already returned a parsed object\n  if (typeof agentOutput === 'object' && agentOutput.reply_message) {\n    analysis = agentOutput;\n  } else {\n    analysis = {\n      reply_message: `Hi ${leadData.lead_name}, thank you for reaching out. One of our agents will get back to you shortly to discuss your needs.`,\n      urgency_level: 'WARM',\n      lead_summary: 'Inquiry received, AI parsing failed.',\n      suggested_followup: 'Manual review required.'\n    };\n  }\n}\n\n// ── Clean markdown from reply ────────────────────────────\nconst cleanReply = (analysis.reply_message || '')\n  .replace(/\\*\\*/g, '')\n  .replace(/\\*/g, '')\n  .replace(/#{1,6}\\s/g, '')\n  .trim();\n\n// ── Normalise urgency level ──────────────────────────────\nconst urgency = (analysis.urgency_level || 'WARM').toUpperCase();\n\nreturn [{\n  json: {\n    ...leadData,\n    ai_reply: cleanReply,\n    urgency_level: urgency,\n    lead_summary: analysis.lead_summary || '',\n    suggested_followup: analysis.suggested_followup || ''\n  }\n}];"
+      },
+      "id": "e6421be0-9300-4539-a1c4-cebfbb2b10e5",
+      "name": "Extract & Format AI Reply",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1024,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.source }}",
+                    "rightValue": "whatsapp",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "c132079a-ba52-4a47-91b6-2e2a521addd9"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "WhatsApp"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.source }}",
+                    "rightValue": "email",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "24720ae7-0542-4d53-9e7f-953126e5d955"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Email"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.source }}",
+                    "rightValue": "website_form",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "777367f7-d6bc-439b-9ff3-b0980cf56a39"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Form"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "b7645ad1-b211-43c3-bcf2-72b0d9cb92c2",
+      "name": "Route by Channel",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        1248,
+        192
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "=habtech99@gmail.com",
+        "subject": "=Re: Your property inquiry — Prime Realty Partners",
+        "message": "=<!DOCTYPE html><html><body style='font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#333'>\n<div style='padding:30px;background:#f9fafb;border-radius:8px'>\n<p>Hi {{ $json.lead_name }},</p>\n<p style='line-height:1.8'>{{ $json.reply_message }}</p>\n<p style='margin-top:24px'>Best regards,<br><strong>Tola</strong><br>Prime Realty Partners<br>+234 802 555 0000</p>\n</div>\n</body></html>",
+        "options": {}
+      },
+      "id": "df58f494-14b0-4da9-bd6f-2de83643c265",
+      "name": "Send Email Reply",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1472,
+        208
+      ],
+      "webhookId": "1687e788-8260-4238-bfad-768dd3d2bed2",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "OjJWLgnvMUPdFc12",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "=habtech99@gmail.com",
+        "subject": "=Thank you for your inquiry — Prime Realty Partners",
+        "message": "=<!DOCTYPE html><html><body style='font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#333'>\n<div style='padding:30px;background:#f9fafb;border-radius:8px'>\n<p>Hi {{ $json.lead_name }},</p>\n<p style='line-height:1.8'>{{ $json.ai_reply }}</p>\n<p style='margin-top:24px'>Best regards,<br><strong>Tola</strong><br>Prime Realty Partners<br>+234 802 555 0000</p>\n</div>\n</body></html>",
+        "options": {}
+      },
+      "id": "dc2d47df-141a-4e06-800d-e08a8ce9dc9f",
+      "name": "Send Form Lead Email Reply",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1472,
+        400
+      ],
+      "webhookId": "3158bb01-ef95-4587-be7e-f6786d98608d",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "OjJWLgnvMUPdFc12",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1j64Svzw16BN5dUFjMcB4Ik2F1nszR2RGZNnfTP148S4",
+          "mode": "list",
+          "cachedResultName": "Lead Intake",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1j64Svzw16BN5dUFjMcB4Ik2F1nszR2RGZNnfTP148S4/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1j64Svzw16BN5dUFjMcB4Ik2F1nszR2RGZNnfTP148S4/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Email": "=",
+            "Budget": "={{ $('Extract & Format AI Reply').item.json.subject }}",
+            "Full Name": "={{ $('Extract & Format AI Reply').item.json.lead_name }}",
+            "Company": "={{ $('Extract & Format AI Reply').item.json.urgency_level }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Full Name",
+              "displayName": "Full Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Budget",
+              "displayName": "Budget",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Email",
+              "displayName": "Email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Company",
+              "displayName": "Company",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "job tittle",
+              "displayName": "job tittle",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Industry",
+              "displayName": "Industry",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "0309264e-629c-40a8-96df-0dc19578599f",
+      "name": "Log Lead to Google Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.2,
+      "position": [
+        1696,
+        208
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "Om45LiQ88EUiTnQ7",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "hot-check",
+              "leftValue": "={{ $json.Company }}",
+              "rightValue": "HOT",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "9a03a644-320b-41de-b583-8513a07c73e7",
+      "name": "Is Hot Lead?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1920,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "updates": [
+          "com.twilio.messaging.inbound-message.received"
+        ]
+      },
+      "type": "n8n-nodes-base.twilioTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        208
+      ],
+      "id": "b5871b19-8133-42f8-8bc6-b8165b0ed5d1",
+      "name": "Twilio Trigger",
+      "webhookId": "b83cd2d3-bccd-4cf3-8a29-ed1a6c025f75",
+      "credentials": {
+        "twilioApi": {
+          "id": "2bGu9L0yhJqZj8UQ",
+          "name": "Twilio account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Lead name: {{ $json.lead_name }}\nContact channel: {{ $json.source }}\nProperty interest: {{ $json.property_interest }}\nBudget mentioned: {{ $json.budget }}\nMessage from lead: {{ $json.message }}\nTime of day: {{ $json.greeting }}",
+        "options": {
+          "systemMessage": "You are a friendly, professional real estate assistant responding to a new property inquiry on behalf of an agent. Your name is Tola. Always be warm, helpful, and create urgency without being pushy.\n\nAGENCY INFORMATION:\nName: Prime Realty Partners\nServices: Residential sales, rentals, and property management\nOffice Hours: Monday to Friday 9am to 6pm, Saturday 10am to 3pm\nPhone: +234 802 555 0000\nEmail: hello@primerealty.com\n\nYOUR TASK:\nWrite a personalised reply to the lead's inquiry. Acknowledge what they are looking for, show genuine interest in helping them, and ask one relevant follow up question to keep the conversation going such as preferred move-in date, budget range, or number of bedrooms needed if not already provided.\n\nAlways end by letting them know an agent will call or message them within the next few hours to arrange a viewing or call.\n\nRULES:\nKeep the response under 120 words.\nDo not use markdown formatting like asterisks or hashtags.\nSound human and warm, not robotic.\nMatch the tone to the channel. WhatsApp and SMS should be short and casual, email can be slightly more formal with a greeting and sign off.\nNever make up specific property details, prices, or availability you do not have.\n\nYou MUST return only a valid JSON object with no markdown, no backticks, and no text before or after it. Use exactly this structure:\n\n{\n  \"reply_message\": \"the personalised reply text\",\n  \"urgency_level\": \"HOT or WARM or COLD based on how ready to buy or rent this lead sounds\",\n  \"lead_summary\": \"one sentence summary of what this person wants\",\n  \"suggested_followup\": \"what the human agent should do next\"\n}"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        672,
+        208
+      ],
+      "id": "e8b01dcc-fba4-4198-9c31-4605a2eebd40",
+      "name": "Generate Reply"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        624,
+        400
+      ],
+      "id": "07fd8113-30f9-4374-a46d-3bdfbdc35b47",
+      "name": "OpenRouter Chat Model",
+      "credentials": {
+        "openRouterApi": {
+          "id": "TR6uzsL6M1OpchsK",
+          "name": "OpenRouter account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "from": "h",
+        "to": "h",
+        "toWhatsapp": true,
+        "message": "h",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.twilio",
+      "typeVersion": 1,
+      "position": [
+        1472,
+        16
+      ],
+      "id": "db4a4712-31a8-45c4-b90e-9a9b39db3355",
+      "name": "Send WhatsApp Reply",
+      "credentials": {
+        "twilioApi": {
+          "id": "2bGu9L0yhJqZj8UQ",
+          "name": "Twilio account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "C0AQUSUT1QE",
+          "mode": "list",
+          "cachedResultName": "sales-team"
+        },
+        "text": ":fire: *HOT LEAD ALERT — Immediate Follow-up Needed*\n\n*Lead:* {{ $json.lead_name }}\n*Channel:* {{ $json.source }}\n*Contact:* {{ $json.lead_email }} {{ $json.lead_phone }}\n*Interest:* {{ $json.property_interest }}\n*Summary:* {{ $json.lead_summary }}\n*Suggested Action:* {{ $json.suggested_followup }}\n\nAuto-reply has already been sent. Please call this lead within the next hour.",
+        "otherOptions": {
+          "mrkdwn": true
+        }
+      },
+      "id": "f7e28450-e792-45e2-8531-cb44d749d133",
+      "name": "Slack-Hot Lead Alert",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.1,
+      "position": [
+        2144,
+        32
+      ],
+      "webhookId": "e1556deb-a173-4c51-99e7-0b60055cb5a7",
+      "credentials": {
+        "slackOAuth2Api": {
+          "id": "YDqZSJ6DrFkhvpYd",
+          "name": "Slack account"
+        }
+      },
+      "notes": "Replace YOUR_SLACK_CHANNEL_ID with your sales team channel"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Website Form Webhook": {
+      "main": [
+        [
+          {
+            "node": "Normalise — Form Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gmail Trigger — New Inquiry": {
+      "main": [
+        [
+          {
+            "node": "Normalise — Email Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalise — Form Lead": {
+      "main": [
+        [
+          {
+            "node": "Assign Lead ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalise — WhatsApp Lead": {
+      "main": [
+        [
+          {
+            "node": "Assign Lead ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalise — Email Lead": {
+      "main": [
+        [
+          {
+            "node": "Assign Lead ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Assign Lead ID": {
+      "main": [
+        [
+          {
+            "node": "Generate Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract & Format AI Reply": {
+      "main": [
+        [
+          {
+            "node": "Route by Channel",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route by Channel": {
+      "main": [
+        [
+          {
+            "node": "Send WhatsApp Reply",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Email Reply",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Form Lead Email Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Email Reply": {
+      "main": [
+        [
+          {
+            "node": "Log Lead to Google Sheets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Form Lead Email Reply": {
+      "main": [
+        [
+          {
+            "node": "Log Lead to Google Sheets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Lead to Google Sheets": {
+      "main": [
+        [
+          {
+            "node": "Is Hot Lead?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Hot Lead?": {
+      "main": [
+        [
+          {
+            "node": "Slack-Hot Lead Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Twilio Trigger": {
+      "main": [
+        [
+          {
+            "node": "Normalise — WhatsApp Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Reply": {
+      "main": [
+        [
+          {
+            "node": "Extract & Format AI Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Generate Reply",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send WhatsApp Reply": {
+      "main": [
+        [
+          {
+            "node": "Log Lead to Google Sheets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "c55fbcf3-3055-463f-a33e-5a34283af399",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "5cbbd120c52dc8c0911dbdf390c52a2354702f194fbe4909355bc0904d5febe6"
+  },
+  "id": "BfwttlkmiyNdZJfB",
+  "tags": []
+}
